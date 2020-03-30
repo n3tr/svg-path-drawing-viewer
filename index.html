@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.15.0/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.15/lodash.min.js"></script>
+    <style>
+      .wrapper {
+        padding: 16px;
+        position: fixed;
+        display: flex;
+        flex-direction: row;
+
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+
+      .preview-panel {
+        flex: 1;
+      }
+
+      .right-panel {
+        width: 400px;
+      }
+
+      .input {
+        height: 400px;
+        width: 300px;
+      }
+
+      .info p {
+        color: #666;
+        font-size: 12px;
+      }
+    </style>
+
+    <script type="text/javascript">
+      let previewPanel;
+
+      function getBoundingBox(boundaries) {
+        let maxX = +_.maxBy(boundaries, p => +p[0])[0];
+        let minX = +_.minBy(boundaries, p => +p[0])[0];
+        let maxY = +_.maxBy(boundaries, p => +p[1])[1];
+        let minY = +_.minBy(boundaries, p => +p[1])[1];
+        return {
+          center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+          size: { width: maxX - minX, height: maxY - minY },
+          max: { x: maxX, y: maxY },
+          min: { x: minX, y: minY }
+        };
+      }
+      function createPathFromBoundaries(boundaries, width, height) {
+        let boundingBox = getBoundingBox(boundaries);
+
+        const scale = Math.min(
+          width / (boundingBox.max.x - boundingBox.min.x),
+          height / (boundingBox.max.y - boundingBox.min.y)
+        );
+
+        const values = boundaries.map(b => [
+          (+b[0] - boundingBox.min.x) * scale,
+          (+b[1] - boundingBox.min.y) * scale
+        ]);
+
+        return d3.line()(values);
+      }
+      function animate(svg) {
+        var path = svg.querySelector("path");
+        var length = path.getTotalLength();
+        // Clear any previous transition
+        path.style.transition = path.style.WebkitTransition = "none";
+        // Set up the starting positions
+        path.style.strokeDasharray = length + " " + length;
+        path.style.strokeDashoffset = length;
+        // Trigger a layout so styles are calculated & the browser
+        // picks up the starting position before animating
+        path.getBoundingClientRect();
+        // Define our transition
+        path.style.transition = path.style.WebkitTransition =
+          "stroke-dashoffset 2s ease-in-out";
+        // Go!
+        path.style.strokeDashoffset = "0";
+        return svg;
+      }
+
+
+      function getBoundaries() {
+        const inputEl = document.getElementById('boundaries-input')
+        const valueString = inputEl.value
+        const value = JSON.parse(valueString)
+        if (!Array.isArray(value)) {
+          throw new Error('Input must be array')
+        }
+
+        if (value.length === 0) {
+          return value
+        }
+
+        // Case [[0,0], [1,1]]
+        if (Array.isArray(value[0]) && value[0].length > 0) {
+          return value
+        }
+
+        if (typeof value[0].x === 'undefined' || typeof value[0].y === 'undefined') {
+          throw new Error('Input must be in format [[0,0], [1,1]] or [{x:0, y:0}, ...]')
+        }
+
+        return value.map(b => [b.x, b.y, b.z])
+      }
+
+      
+      function saveLatestBoundaries() {
+        const inputEl = document.getElementById('boundaries-input')
+        const valueString = inputEl.value
+        localStorage.setItem('_latest_bd',valueString )
+      }
+
+      function restoreLatestBoundaries() {
+        const latest = localStorage.getItem('_latest_bd')
+        console.log(latest)
+        const inputEl = document.getElementById('boundaries-input')
+        inputEl.value = latest
+        
+      }
+
+      function render() {
+
+        let boundaries = getBoundaries()
+        let previewPanel = document.getElementById('preview')
+        const width = previewPanel.clientWidth;
+        const height = previewPanel.clientHeight;
+        previewPanel.innerHTML = ''
+        const svg = d3.create("svg")
+            .attr("viewBox", [0, 0, width, height]);
+        
+        let path = svg.append("path")
+        .attr("d", createPathFromBoundaries(boundaries, width , height))
+        .attr('fill',"#fefefe")
+        .attr('stroke', '#000')
+        .attr('stroke-width',"0.5")
+        .attr('stroke-opacity',"0.5")
+        .attr('fill-rule', "nonzero")
+
+        
+        previewPanel.appendChild(svg.node())
+
+        saveLatestBoundaries()
+        
+        setTimeout(() => {
+          animate(svg.node())
+        }, 1000)
+      }
+
+
+      document.addEventListener('DOMContentLoaded', restoreLatestBoundaries)
+    </script>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="preview-panel" id="preview">
+        <svg id=""></svg>
+      </div>
+      <div class="right-panel">
+        
+        <div>
+
+          <textarea class="input" id="boundaries-input"></textarea>
+        </div>
+        <div>
+          <button onclick="render()">Render</button>
+        </div>
+        <div class="info">
+          <p>
+            - [[0, 0, 0], [1, 1, 1], ...]
+          </p>
+          <p>
+            - [{ x:0, y:0, z:1 },  { x:0, y:0, z:1 }, ...]
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
